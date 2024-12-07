@@ -1,5 +1,5 @@
 ## local_generate-代码分析
-以下是对代码 `local_generate.py` 实现功能的详细中文分析：
+以下是对代码 `local_generate.py` 实现功能的详细分析：
 
 ---
 
