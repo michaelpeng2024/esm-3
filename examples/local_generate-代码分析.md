@@ -429,3 +429,127 @@ single_step_protein = client.decode(single_step_protein.protein_tensor)
 
 ### **总结**
 单步解码是逐步预测生成过程的一种策略，能够更好地控制生成结果的质量和动态性。在代码中，通过 `client.forward_and_sample()` 实现了单步预测，为进一步的功能或生成步骤提供了灵活性和精细的控制。
+
+以下是对 **Logits 提取实现过程** 的深入分析，代码相关片段如下：
+
+---
+
+### **代码片段**
+
+```python
+protein = get_sample_protein()
+protein.coordinates = None
+protein.function_annotations = None
+protein.sasa = None
+protein_tensor = client.encode(protein)
+logits_output = client.logits(protein_tensor, LogitsConfig(sequence=True))
+```
+
+---
+
+### **Logits提取的实现步骤**
+
+#### **1. 准备示例蛋白质对象**
+```python
+protein = get_sample_protein()
+```
+- **功能**：
+  - 获取一个示例蛋白质（PDB ID: `1utn`）。
+  - 初始蛋白质对象包含序列、功能注释和其他结构性信息。
+- **结果**：
+  - `protein` 是一个包含完整信息的 `ESMProtein` 对象。
+
+---
+
+#### **2. 清除多余的蛋白质信息**
+```python
+protein.coordinates = None
+protein.function_annotations = None
+protein.sasa = None
+```
+- **功能**：
+  - 移除蛋白质的三维坐标（`coordinates`）、功能注释（`function_annotations`）和溶剂可接触表面积（`sasa`）。
+  - 这些信息与 Logits 提取任务无关，只保留序列信息供模型处理。
+
+---
+
+#### **3. 编码为张量表示**
+```python
+protein_tensor = client.encode(protein)
+```
+- **功能**：
+  - 将 `ESMProtein` 对象编码为张量表示（`ESMProteinTensor`）。
+  - 张量表示是 ESM3 模型的输入格式，包含序列及其嵌入表示。
+
+- **关键点**：
+  - `client.encode` 是 ESM3 的核心方法，将蛋白质序列转化为模型可处理的内部表示。
+
+---
+
+#### **4. 配置Logits提取任务**
+```python
+logits_output = client.logits(protein_tensor, LogitsConfig(sequence=True))
+```
+- **功能**：
+  - 调用 `client.logits` 提取 logits 信息。
+  - `LogitsConfig(sequence=True)` 指定需要提取的是序列级别的 logits。
+
+- **Logits的定义**：
+  - Logits 是模型输出层的原始预测分数，表示未经过 softmax 激活的概率值。
+  - 在序列级别，每个位置的 logits 对应于每个可能氨基酸的预测分数。
+
+---
+
+### **Logits 提取的作用**
+
+1. **细粒度分析**：
+   - 提供每个位置的未归一化预测分数，可以分析模型对不同氨基酸的信心程度。
+   - 适用于分类任务或不需要直接生成结果的场景。
+
+2. **自定义后处理**：
+   - 使用 logits，可以自定义激活函数（如 softmax 或其他归一化方式）来满足特定任务的需求。
+   - 支持下游任务如氨基酸突变影响预测。
+
+3. **模型调试和优化**：
+   - Logits 提供模型的原始输出，可用于分析和调试预测结果。
+
+---
+
+### **输出结果的类型**
+```python
+assert isinstance(logits_output, LogitsOutput)
+assert (
+    logits_output.logits is not None and logits_output.logits.sequence is not None
+)
+```
+
+- **`logits_output` 的类型**：
+  - `LogitsOutput` 是 logits 的封装对象，包含以下字段：
+    - `logits.sequence`：每个位置的 logits。
+    - 其他与任务相关的字段。
+
+- **验证输出是否正确**：
+  - 确保提取的 logits 不为空，并且序列级 logits 存在。
+
+---
+
+### **可能的应用场景**
+
+1. **序列分类**：
+   - 使用 `logits.sequence` 提取每个位置的预测分数，结合分类标准判断序列属性。
+
+2. **突变效应分析**：
+   - 比较不同序列（或单点突变）对应位置的 logits 变化，评估突变对蛋白质功能的影响。
+
+3. **特定任务的激活函数设计**：
+   - 在后处理时对 logits 应用自定义激活函数（例如 softmax 或 sigmoid），以支持特定任务。
+
+---
+
+### **总结**
+Logits 提取过程的核心在于：
+1. **输入准备**：确保只有必要信息传递给模型（序列）。
+2. **任务配置**：通过 `LogitsConfig` 配置提取目标。
+3. **细粒度输出**：获取序列的每个位置的预测分数，用于后续分析。
+
+提取的 logits 是 ESM3 模型中非常有用的中间结果，可为许多下游任务提供基础数据支持。
